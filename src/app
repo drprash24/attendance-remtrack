@@ -1,0 +1,22 @@
+import { Routes, Route } from 'react-router-dom'
+import Home from './pages/Home.jsx'
+import AddAttendance from './pages/AddAttendance.jsx'
+import Stats from './pages/Stats.jsx'
+import ItemDetail from './pages/ItemDetail.jsx'
+import Settings from './pages/Settings.jsx'
+import ReminderWatcher from './components/ReminderWatcher.jsx'
+
+export default function App() {
+  return (
+    <div className="min-h-screen bg-base">
+      <ReminderWatcher />
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/add" element={<AddAttendance />} />
+        <Route path="/stats" element={<Stats />} />
+        <Route path="/item/:id" element={<ItemDetail />} />
+        <Route path="/settings" element={<Settings />} />
+      </Routes>
+    </div>
+  )
+}
