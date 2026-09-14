@@ -1,0 +1,94 @@
+import { useEffect, useState, useRef } from 'react'
+import { db, todayKey } from '../lib/db.js'
+import { fireReminder, stopReminder } from '../lib/reminderEngine.js'
+import ReminderOverlay from './ReminderOverlay.jsx'
+
+const CHECK_EVERY_MS = 20000
+
+function minutesUntil(timeStr) {
+  const [h, m] = timeStr.split(':').map(Number)
+  const now = new Date()
+  const target = new Date()
+  target.setHours(h, m, 0, 0)
+  return (target - now) / 60000
+}
+
+export default function ReminderWatcher() {
+  const [active, setActive] = useState(null) // { item, reminder }
+  const firedFor = useRef(new Set()) // itemIds already alerted today, avoids re-firing every poll
+
+  useEffect(() => {
+    const tick = async () => {
+      if (active) return // one at a time, don't stack alerts
+      const today = todayKey()
+      const weekday = new Date().getDay()
+
+      const reminders = await db.reminders.where('weekday').equals(weekday).toArray()
+      for (const rem of reminders) {
+        if (firedFor.current.has(rem.itemId)) continue
+        if (rem.snoozedUntil && new Date(rem.snoozedUntil) > new Date()) continue
+
+        const record = await db.records.where({ itemId: rem.itemId, date: today }).first()
+        if (record?.checkInAt) continue // already checked in, nothing to remind
+
+        // fire when within 5 minutes of window closing, or window already passed
+        const minsLeft = minutesUntil(rem.windowEnd)
+        if (minsLeft <= 5) {
+          const item = await db.items.get(rem.itemId)
+          if (!item) continue
+          firedFor.current.add(rem.itemId)
+          fireReminder()
+          setActive({ item, reminder: rem })
+          break
+        }
+      }
+    }
+    tick()
+    const id = setInterval(tick, CHECK_EVERY_MS)
+    return () => clearInterval(id)
+  }, [active])
+
+  async function handleSubmit() {
+    const { item } = active
+    const today = todayKey()
+    const existing = await db.records.where({ itemId: item.id, date: today }).first()
+    const now = new Date().toISOString()
+    if (existing) {
+      await db.records.update(existing.id, { checkInAt: now })
+    } else {
+      await db.records.add({ itemId: item.id, date: today, checkInAt: now, checkOutAt: null, status: 'on_time' })
+    }
+    stopReminder()
+    setActive(null)
+  }
+
+  async function handleSnooze() {
+    const { reminder } = active
+    const snoozedUntil = new Date(Date.now() + 10 * 60000).toISOString()
+    await db.reminders.update(reminder.id, { snoozedUntil })
+    firedFor.current.delete(reminder.itemId)
+    stopReminder()
+    setActive(null)
+  }
+
+  async function handleIgnore() {
+    const { item } = active
+    const today = todayKey()
+    const existing = await db.records.where({ itemId: item.id, date: today }).first()
+    if (!existing) {
+      await db.records.add({ itemId: item.id, date: today, checkInAt: null, checkOutAt: null, status: 'absent' })
+    }
+    stopReminder()
+    setActive(null)
+  }
+
+  if (!active) return null
+  return (
+    <ReminderOverlay
+      item={active.item}
+      onSubmit={handleSubmit}
+      onSnooze={handleSnooze}
+      onIgnore={handleIgnore}
+    />
+  )
+}
