@@ -1,0 +1,77 @@
+import { useNavigate } from 'react-router-dom'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { db, todayKey, STATUS } from '../lib/db.js'
+import PresenceRing from '../components/PresenceRing.jsx'
+import ItemCard from '../components/ItemCard.jsx'
+
+export default function Home() {
+  const navigate = useNavigate()
+  const today = todayKey()
+
+  const items = useLiveQuery(() => db.items.orderBy('createdAt').toArray(), [])
+  const records = useLiveQuery(() => db.records.where('date').equals(today).toArray(), [today])
+
+  const recordByItem = new Map((records || []).map(r => [r.itemId, r]))
+  const total = items?.length || 0
+  const done = (records || []).filter(r => r.checkInAt).length
+  const late = (records || []).filter(r => r.status === STATUS.LATE).length
+  const absent = (records || []).filter(r => r.status === STATUS.ABSENT).length
+
+  async function handleCheckIn(item) {
+    const existing = recordByItem.get(item.id)
+    const now = new Date()
+    if (existing) {
+      await db.records.update(existing.id, { checkInAt: now.toISOString(), status: STATUS.ON_TIME })
+    } else {
+      await db.records.add({
+        itemId: item.id,
+        date: today,
+        checkInAt: now.toISOString(),
+        checkOutAt: null,
+        status: STATUS.ON_TIME
+      })
+    }
+  }
+
+  async function handleCheckOut(item) {
+    const existing = recordByItem.get(item.id)
+    if (existing) {
+      await db.records.update(existing.id, { checkOutAt: new Date().toISOString() })
+    }
+  }
+
+  return (
+    <div className="max-w-md mx-auto px-4 pb-24">
+      <header className="pt-8 pb-2 flex items-center justify-between">
+        <h1 className="font-display text-xl font-bold text-ink">Attendance</h1>
+        <button onClick={() => navigate('/settings')} className="text-muted text-sm">Settings</button>
+      </header>
+
+      <PresenceRing total={total} done={done} late={late} absent={absent} />
+
+      <button
+        onClick={() => navigate('/add')}
+        className="w-full py-4 rounded-card bg-surface2 border border-line text-ink font-display font-semibold mb-6 active:scale-[0.98] transition"
+      >
+        + Add attendance
+      </button>
+
+      <div className="flex flex-col gap-3">
+        {(items || []).length === 0 && (
+          <div className="text-center text-muted text-sm py-12">
+            Nothing tracked yet. Add your first class, shift, or habit above.
+          </div>
+        )}
+        {(items || []).map(item => (
+          <ItemCard
+            key={item.id}
+            item={item}
+            record={recordByItem.get(item.id)}
+            onCheckIn={handleCheckIn}
+            onCheckOut={handleCheckOut}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
