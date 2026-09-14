@@ -1,0 +1,47 @@
+import { useNavigate } from 'react-router-dom'
+
+// A circular ring showing how much of today's expected attendance is done.
+// Tapping it opens the full stats page.
+export default function PresenceRing({ total, done, late, absent }) {
+  const navigate = useNavigate()
+  const size = 168
+  const stroke = 12
+  const r = (size - stroke) / 2
+  const circumference = 2 * Math.PI * r
+  const pct = total === 0 ? 0 : done / total
+  const offset = circumference * (1 - pct)
+
+  return (
+    <button
+      onClick={() => navigate('/stats')}
+      className="relative flex flex-col items-center justify-center w-full py-8 group"
+      aria-label="Open attendance stats"
+    >
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} stroke="#262B30" strokeWidth={stroke} fill="none" />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          stroke="#3DD68C"
+          strokeWidth={stroke}
+          fill="none"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          style={{ transition: 'stroke-dashoffset 0.6s ease' }}
+        />
+      </svg>
+      <div className="absolute flex flex-col items-center">
+        <span className="font-display text-4xl font-bold text-ink">{done}/{total}</span>
+        <span className="text-sm text-muted mt-1">checked in today</span>
+      </div>
+      {(late > 0 || absent > 0) && (
+        <div className="flex gap-3 mt-3 text-xs">
+          {late > 0 && <span className="text-late">{late} late</span>}
+          {absent > 0 && <span className="text-absent">{absent} missed</span>}
+        </div>
+      )}
+    </button>
+  )
+}
