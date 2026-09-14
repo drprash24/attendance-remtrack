@@ -1,0 +1,51 @@
+import { useState } from 'react'
+
+// Blocking full-screen reminder. No backdrop click, no Escape key handling —
+// the only way out is one of the three buttons below.
+export default function ReminderOverlay({ item, onSubmit, onSnooze, onIgnore }) {
+  const [shake, setShake] = useState(false)
+
+  function blockDismiss() {
+    setShake(true)
+    setTimeout(() => setShake(false), 400)
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-base/98 backdrop-blur-sm flex flex-col items-center justify-center px-6"
+      onClick={blockDismiss}
+      role="alertdialog"
+      aria-modal="true"
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        className={`w-full max-w-sm bg-surface rounded-card p-6 flex flex-col items-center text-center gap-2 ${shake ? 'animate-shake' : ''}`}
+      >
+        <div className="w-14 h-14 rounded-full bg-late/20 flex items-center justify-center text-2xl mb-2">⏰</div>
+        <h2 className="font-display text-xl font-bold text-ink">Time to check in</h2>
+        <p className="text-muted text-sm mb-4">
+          {item?.name}'s window is closing soon. Pick one to continue.
+        </p>
+
+        <button
+          onClick={onSubmit}
+          className="w-full py-3.5 rounded-card bg-present text-base font-display font-semibold"
+        >
+          Submit attendance
+        </button>
+        <button
+          onClick={onSnooze}
+          className="w-full py-3.5 rounded-card bg-surface2 border border-line text-ink font-semibold"
+        >
+          Remind me in 10 minutes
+        </button>
+        <button
+          onClick={onIgnore}
+          className="w-full py-3.5 text-muted text-sm"
+        >
+          Ignore for today
+        </button>
+      </div>
+    </div>
+  )
+}
